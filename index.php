@@ -181,5 +181,179 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     </form>
 </div>
 
+<div class="section">
+    <h2>Pierwsi zapisani użytkownicy na każdy kurs</h2>
+    <table>
+        <tr><th>ID kursu</th><th>Imię i nazwisko użytkownika</th><th>Data zapisania</th></tr>
+        <?php
+        $result2 = mysqli_query($conn, "
+            SELECT 
+                kurs_id,
+                imie_i_nazwisko,
+                data_zapisania
+            FROM (
+                SELECT 
+                    kursy_online.zapisania.kurs_id,
+                    kursy_online.uzytkownicy.imie_i_nazwisko,
+                    kursy_online.zapisania.data_zapisania,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY kursy_online.zapisania.kurs_id 
+                        ORDER BY kursy_online.zapisania.data_zapisania ASC
+                    ) AS numer
+                FROM 
+                    kursy_online.zapisania
+                JOIN 
+                    kursy_online.uzytkownicy 
+                    ON kursy_online.zapisania.uzytkownik_id = kursy_online.uzytkownicy.uzytkownik_id
+            ) AS sub
+            WHERE numer = 1
+        ");
+        while ($row = mysqli_fetch_assoc($result2)) {
+            echo "<tr><td>{$row['kurs_id']}</td><td>{$row['imie_i_nazwisko']}</td><td>{$row['data_zapisania']}</td></tr>";
+        }
+        ?>
+    </table>
+</div>
+
+<div class="section">
+    <h2>Najstarszy certyfikat</h2>
+    <table>
+        <tr>
+            <th>Imię i nazwisko</th>
+            <th>ID certyfikatu</th>
+            <th>Data wydania</th>
+        </tr>
+        <?php
+        $result = mysqli_query($conn, "
+            SELECT 
+                kursy_online.certyfikaty.certyfikat_id,
+                kursy_online.uzytkownicy.imie_i_nazwisko,
+                kursy_online.certyfikaty.data_wydania
+            FROM 
+                kursy_online.certyfikaty
+            JOIN 
+                kursy_online.uzytkownicy 
+                ON kursy_online.certyfikaty.uzytkownik_id = kursy_online.uzytkownicy.uzytkownik_id
+            WHERE 
+                kursy_online.certyfikaty.data_wydania = (
+                    SELECT MIN(data_wydania) 
+                    FROM kursy_online.certyfikaty
+                );
+        ");
+        
+        while ($row = mysqli_fetch_assoc($result)) {
+            echo "<tr>
+                <td>{$row['imie_i_nazwisko']}</td>
+                <td>{$row['certyfikat_id']}</td>
+                <td>{$row['data_wydania']}</td>
+            </tr>";
+        }
+        ?>
+    </table>
+</div>
+
+
+
+
+<div class="section">
+    <h2>Ranking użytkowników wg liczby certyfikatów</h2>
+    <table>
+        <tr>
+            <th>Pozycja</th>
+            <th>Imię i nazwisko</th>
+            <th>Liczba certyfikatów</th>
+        </tr>
+        <?php
+        $result = mysqli_query($conn, "
+            SELECT 
+                imie_i_nazwisko,
+                liczba_cert,
+                RANK() OVER (ORDER BY liczba_cert DESC) AS pozycja
+            FROM (
+                SELECT 
+                    kursy_online.uzytkownicy.imie_i_nazwisko,
+                    COUNT(kursy_online.certyfikaty.certyfikat_id) AS liczba_cert
+                FROM 
+                    kursy_online.uzytkownicy
+                LEFT JOIN 
+                    kursy_online.certyfikaty 
+                    ON kursy_online.uzytkownicy.uzytkownik_id = kursy_online.certyfikaty.uzytkownik_id
+                GROUP BY 
+                    kursy_online.uzytkownicy.uzytkownik_id
+            ) AS ranking
+        ");
+        
+        while ($row = mysqli_fetch_assoc($result)) {
+            echo "<tr>
+                <td>{$row['pozycja']}</td>
+                <td>{$row['imie_i_nazwisko']}</td>
+                <td>{$row['liczba_cert']}</td>
+            </tr>";
+        }
+        ?>
+    </table>
+</div>
+
+
+
+<div class="section">
+    <h2>Użytkownicy i liczba zapisów</h2>
+    <table>
+        <tr>
+            <th>Imię i nazwisko</th>
+            <th>Liczba zapisów</th>
+        </tr>
+        <?php
+        $result = mysqli_query($conn, "
+            SELECT 
+                kursy_online.uzytkownicy.uzytkownik_id,
+                kursy_online.uzytkownicy.imie_i_nazwisko,
+                COUNT(kursy_online.zapisania.kurs_id) 
+                    OVER (PARTITION BY kursy_online.uzytkownicy.uzytkownik_id) 
+                    AS liczba_zapisow
+            FROM 
+                kursy_online.uzytkownicy
+            LEFT JOIN 
+                kursy_online.zapisania 
+                ON kursy_online.uzytkownicy.uzytkownik_id = kursy_online.zapisania.uzytkownik_id
+        ");
+        $uzytkownicy = [];
+        while ($row = mysqli_fetch_assoc($result)) {
+            $id = $row['uzytkownik_id'];
+            if (!isset($uzytkownicy[$id])) {
+                $uzytkownicy[$id] = true;
+                echo "<tr>
+                    <td>{$row['imie_i_nazwisko']}</td>
+                    <td>{$row['liczba_zapisow']}</td>
+                </tr>";
+            }
+        }
+        ?>
+    </table>
+</div>
+
+
+
+<div class="section">
+    <h2>Ostatnie 5 zapisów</h2>
+    <table>
+        <tr><th>Użytkownik</th><th>Kurs</th><th>Data zapisania</th></tr>
+        <?php
+        $result = mysqli_query($conn, "
+            SELECT u.imie_i_nazwisko AS uzytkownik, k.tytul AS kurs, z.data_zapisania
+            FROM Zapisania z
+            JOIN Uzytkownicy u ON z.uzytkownik_id = u.uzytkownik_id
+            JOIN Kursy k ON z.kurs_id = k.kurs_id
+            ORDER BY z.data_zapisania DESC
+            LIMIT 5
+        ");
+        while ($row = mysqli_fetch_assoc($result)) {
+            echo "<tr><td>{$row['uzytkownik']}</td><td>{$row['kurs']}</td><td>{$row['data_zapisania']}</td></tr>";
+        }
+        ?>
+    </table>
+</div>
+
+
 </body>
 </html>
